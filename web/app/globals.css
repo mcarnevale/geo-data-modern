@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Chicago";
+  src: url("/fonts/chicago-12-1.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tiny5";
+  src: url("/fonts/Tiny5-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* System 1 UI tokens */
+  --sys-bg: #c0c0c0;
+  --sys-bg-dark: #a8a8a8;
+  --sys-fg: #000000;
+  --sys-border: #000000;
+  --sys-titlebar: #c0c0c0;
+  --sys-shadow: #000000;
+
+  /* Spacing scale (px) */
+  --sys-space-1: 2px;
+  --sys-space-2: 4px;
+  --sys-space-3: 8px;
+
+  /* Legacy compatibility */
+  --background: var(--sys-bg);
+  --foreground: var(--sys-fg);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
+  --font-mono: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-radius: 0;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.25;
+  -webkit-font-smoothing: none;
+  font-smoothing: none;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: var(--sys-bg);
+  color: var(--sys-fg);
+  font-family: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
+  overflow: hidden;
+}
+
+/* Desktop texture: faint 1px grid + subtle noise (CSS-only, performant) */
+.desktop-texture {
+  background-color: var(--sys-bg);
+  background-image:
+    /* 1px grid */
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 4px 4px;
+  position: relative;
+}
+
+.desktop-texture::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
