@@ -8,7 +8,7 @@
  * Series values: 1=High, 2=Awakening, 3=Unraveling, 4=Crisis when active (0 otherwise)
  * so the chart draws distinct horizontal bands.
  */
-import type { TileDataPayload } from "@/src/lib/data/fetchers/types";
+import type { TileDataPayload, TileDataRow } from "@/src/lib/data/fetchers/types";
 import { TIMELINE_END_YEAR, TIMELINE_START_YEAR } from "@/src/lib/timeline";
 
 const TURNING_BOUNDARIES: { year: number; phase: 1 | 2 | 3 | 4 }[] = [
@@ -27,7 +27,7 @@ function phaseForYear(year: number): 1 | 2 | 3 | 4 {
 }
 
 export function getTurningTimelinePayload(): TileDataPayload {
-  const data: Record<string, string | number | null>[] = [];
+  const data: TileDataRow[] = [];
   for (let y = TIMELINE_START_YEAR; y <= TIMELINE_END_YEAR; y++) {
     const phase = phaseForYear(y);
     data.push({

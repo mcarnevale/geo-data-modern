@@ -1,10 +1,10 @@
 "use client";
 
 import { Window } from "@/src/components/system1/Window";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "/";
@@ -127,5 +127,25 @@ export default function LoginPage() {
         </form>
       </Window>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-[var(--sys-space-3)] p-[var(--sys-space-3)]"
+        style={{ background: "var(--sys-bg)" }}
+      >
+        <h1 className="text-[1.5rem] font-semibold" style={{ color: "var(--sys-fg)" }}>
+          GeoData
+        </h1>
+        <div className="w-full max-w-sm text-center" style={{ color: "var(--sys-fg)" }}>
+          Loading…
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

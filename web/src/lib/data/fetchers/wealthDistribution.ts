@@ -21,7 +21,8 @@ export async function fetchWealthDistribution(init?: RequestInit): Promise<TileD
     fetchFredSeriesCsv(SERIES.top1, init, FRED_DATE_RANGE),
   ]);
 
-  const byDate = new Map<string, Record<string, number | null>>();
+  type Row = Record<string, string | number | null>;
+  const byDate = new Map<string, Row>();
 
   function addSeries(points: { date: string; value: number | null }[], key: string) {
     for (const p of points) {
@@ -30,7 +31,7 @@ export async function fetchWealthDistribution(init?: RequestInit): Promise<TileD
         row = { date: p.date, bottom50: null, p50to90: null, p90to99: null, top1: null };
         byDate.set(p.date, row);
       }
-      (row as Record<string, number | null>)[key] = p.value;
+      row[key] = p.value;
     }
   }
 
@@ -43,11 +44,12 @@ export async function fetchWealthDistribution(init?: RequestInit): Promise<TileD
   const data = Array.from(byDate.values())
     .filter(
       (row) =>
+        row.date != null &&
         seriesKeys.some((k) => row[k] != null) &&
         row.date >= TIMELINE_START_DATE &&
         row.date <= TIMELINE_END_DATE
     )
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0))
     .map((row) => ({ ...row, date: row.date })) as TileDataPayload["data"];
 
   return {

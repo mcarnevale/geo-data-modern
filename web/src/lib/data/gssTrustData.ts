@@ -6,7 +6,7 @@
  * GSS is biennial from 1994; earlier years annual (with some gaps). Data aligned to survey years.
  * When GSS provides an API or downloadable time series, replace with a live fetcher.
  */
-import type { TileDataPayload } from "@/src/lib/data/fetchers/types";
+import type { TileDataPayload, TileDataRow } from "@/src/lib/data/fetchers/types";
 
 const GSS_YEARS = [
   1985, 1987, 1988, 1989, 1990, 1991, 1993, 1994, 1996, 1998, 2000, 2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2021, 2022,
@@ -45,15 +45,14 @@ const SERIES_LABELS: Record<string, string> = {
 };
 
 export function getGssTrustPayload(): TileDataPayload {
-  const data = GSS_YEARS.map((year, i) => {
+  const data: TileDataRow[] = GSS_YEARS.map((year, i) => {
     const row = TRUST_PERCENTS[i];
-    const out: Record<string, string | number | null> = {
+    return {
       date: `${year}-06-01`,
       congress: row?.congress ?? null,
       banks: row?.banks ?? null,
       trust: row?.trust ?? null,
     };
-    return out;
   });
 
   return {

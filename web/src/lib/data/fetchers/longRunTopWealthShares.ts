@@ -16,7 +16,8 @@ export async function fetchLongRunTopWealthShares(init?: RequestInit): Promise<T
     fetchFredSeriesCsv(SERIES.p90to99, init, FRED_DATE_RANGE),
   ]);
 
-  const byDate = new Map<string, Record<string, number | null>>();
+  type Row = Record<string, string | number | null>;
+  const byDate = new Map<string, Row>();
 
   function addSeries(points: { date: string; value: number | null }[], key: string) {
     for (const p of points) {
@@ -25,7 +26,7 @@ export async function fetchLongRunTopWealthShares(init?: RequestInit): Promise<T
         row = { date: p.date, top1: null, top10: null };
         byDate.set(p.date, row);
       }
-      (row as Record<string, number | null>)[key] = p.value;
+      row[key] = p.value;
     }
   }
 
@@ -39,17 +40,19 @@ export async function fetchLongRunTopWealthShares(init?: RequestInit): Promise<T
     }
     const top1 = row.top1;
     const p90to99 = p.value;
-    row.top10 = top1 != null && p90to99 != null ? top1 + p90to99 : null;
+    row.top10 =
+      typeof top1 === "number" && p90to99 != null ? top1 + p90to99 : null;
   }
 
   const data = Array.from(byDate.values())
     .filter(
       (row) =>
+        row.date != null &&
         (row.top1 != null || row.top10 != null) &&
         row.date >= TIMELINE_START_DATE &&
         row.date <= TIMELINE_END_DATE
     )
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0))
     .map((row) => ({
       date: row.date,
       top1: row.top1 ?? null,

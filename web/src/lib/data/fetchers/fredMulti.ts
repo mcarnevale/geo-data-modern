@@ -18,7 +18,8 @@ export async function fetchFredMulti(
     series.map((s) => fetchFredSeriesCsv(s.id, init, FRED_DATE_RANGE))
   );
 
-  const byDate = new Map<string, Record<string, number | null>>();
+  type Row = Record<string, string | number | null>;
+  const byDate = new Map<string, Row>();
   const seriesById: Record<string, string> = {};
   for (const s of series) {
     seriesById[s.id] = s.label;
@@ -30,7 +31,7 @@ export async function fetchFredMulti(
     for (const p of points) {
       let row = byDate.get(p.date);
       if (!row) {
-        row = { date: p.date } as Record<string, number | null>;
+        row = { date: p.date };
         for (const s of series) row[s.id] = null;
         byDate.set(p.date, row);
       }
@@ -41,11 +42,12 @@ export async function fetchFredMulti(
   const data = Array.from(byDate.values())
     .filter(
       (row) =>
+        row.date != null &&
         series.some((s) => row[s.id] != null) &&
         row.date >= TIMELINE_START_DATE &&
         row.date <= TIMELINE_END_DATE
     )
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0))
     .map((row) => ({ ...row, date: row.date })) as TileDataPayload["data"];
 
   // #region agent log

@@ -7,7 +7,7 @@
  * Data aligned to SCF survey years (1989, 1992, ..., 2022).
  * When the Fed provides a direct CSV/API, replace this with a live fetcher.
  */
-import type { TileDataPayload } from "@/src/lib/data/fetchers/types";
+import type { TileDataPayload, TileDataRow } from "@/src/lib/data/fetchers/types";
 
 const SCF_YEARS = [1989, 1992, 1995, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022] as const;
 
@@ -37,9 +37,9 @@ const SERIES_LABELS: Record<string, string> = {
 };
 
 export function getScfWealthByCohortPayload(): TileDataPayload {
-  const data = SCF_YEARS.map((year, i) => {
+  const data: TileDataRow[] = SCF_YEARS.map((year, i) => {
     const row = MEDIAN_NET_WORTH_THOUSANDS[i];
-    const out: Record<string, string | number | null> = {
+    return {
       date: `${year}-06-01`,
       under35: row?.under35 ?? null,
       age35_44: row?.age35_44 ?? null,
@@ -48,7 +48,6 @@ export function getScfWealthByCohortPayload(): TileDataPayload {
       age65_74: row?.age65_74 ?? null,
       age75plus: row?.age75plus ?? null,
     };
-    return out;
   });
 
   return {
