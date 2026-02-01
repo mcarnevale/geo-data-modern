@@ -37,6 +37,8 @@ export interface TileDef {
   tileId: string;
   label: string;
   description: string;
+  /** Short explanation of what the chart shows and how it tells the story of its title. */
+  chartStory?: string;
   source: TileDefSource;
   fetch: TileDefFetch;
 }
@@ -52,6 +54,7 @@ const DFA_WEALTH_SPINE: TileDef = {
   tileId: "wealth-distribution",
   label: "Wealth Distribution",
   description: "Wealth shares by percentile group (top 1%, top 10%, etc.), quarterly.",
+  chartStory: "Shares of total household wealth held by the bottom 50%, 50–90%, 90–99%, and top 1%. Rising top share means wealth is concentrating.",
   source: {
     provider: "Federal Reserve Distributional Financial Accounts (DFA)",
     access: "FRED",
@@ -301,6 +304,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "instability-unrest-events",
         label: "Instability and unrest events",
         description: "Annual count of US political unrest events (demonstrations, protests, political violence).",
+        chartStory: "Annual counts of demonstrations, protests, and political violence in the US. Spikes indicate periods of mass mobilization or crisis.",
         source: {
           provider: "ACLED (Armed Conflict Location & Event Data Project)",
           url: "https://acleddata.com/united-states-and-canada/usa/",
@@ -411,6 +415,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "debt-economy-by-sector",
         label: "Debt in the economy",
         description: "Total credit market debt (TCMDO), household (CMDEBT), corporate (NCBDBIQ027S), federal (FYGFDPUN).",
+        chartStory: "Total credit and debt by sector (household, corporate, federal). Shows who is borrowing and how leverage has shifted over time.",
         source: { provider: "Federal Reserve Financial Accounts (Z.1) via FRED" },
         fetch: {
           kind: "fred-multi",
@@ -459,6 +464,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "inflation-vs-policy",
         label: "Inflation versus policy",
         description: "CPI-U (CPIAUCSL) or PCE (PCEPI), Effective Federal Funds Rate.",
+        chartStory: "CPI-U measures consumer inflation; Fed Funds is the policy rate. When the Fed raises rates above inflation, policy is tightening; when rates lag, policy is accommodative.",
         source: { provider: "FRED" },
         fetch: {
           kind: "fred-multi",
@@ -474,6 +480,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "labor-slack-recession-dynamics",
         label: "Labor slack and recession dynamics",
         description: "Unemployment (UNRATE), employment (PAYEMS) or participation (CIVPART), NBER recession (USREC).",
+        chartStory: "Unemployment, payrolls, and NBER recession bars. Unemployment spikes in recessions; payrolls show job recovery. Recession shading marks downturns.",
         source: { provider: "FRED" },
         fetch: {
           kind: "fred-multi",
@@ -529,6 +536,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "r-versus-g",
         label: "r versus g",
         description: "Rate of return on private fixed assets; real GDP growth (FRED GDPC1).",
+        chartStory: "Real GDP level and growth. When r > g (return on capital exceeds growth), wealth can concentrate; when g rises, growth broadens gains.",
         source: { provider: "BEA Fixed Assets, BEA NIPA / FRED" },
         fetch: {
           kind: "fred-multi",
@@ -559,6 +567,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "long-run-top-wealth-shares",
         label: "Long-run top wealth shares",
         description: "US wealth share top 1%, top 10% (quarterly), long-run complement to DFA.",
+        chartStory: "Top 1% and top 10% share of household wealth. When both rise, inequality is increasing; when they diverge, the very top is pulling away from the rest of the top.",
         source: {
           provider: "Federal Reserve Distributional Financial Accounts (DFA)",
           access: "FRED",
@@ -719,6 +728,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "violence-and-war",
         label: "Violence and war",
         description: "Global battle-related deaths (UCDP); conflict intensity as contextual leveler.",
+        chartStory: "Global battle-related deaths over time. Major wars show as spikes; long peace shows as low levels. Context for 'leveling' forces in history.",
         source: {
           provider: "UCDP (Uppsala Conflict Data Program)",
           url: "https://ucdp.uu.se/downloads/",
@@ -729,6 +739,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "mass-mobilization-political-upheaval",
         label: "Mass mobilization and political upheaval",
         description: "US protest and political violence event counts and intensity over time.",
+        chartStory: "US demonstrations, protests, and political violence by year. Spikes indicate periods of upheaval or mobilization (e.g. 2020).",
         source: { provider: "ACLED (Armed Conflict Location & Event Data Project)" },
         fetch: { kind: "unrest", params: {} },
       },
@@ -736,6 +747,7 @@ export const prototypeModels: RegistryModel[] = [
         tileId: "pandemic-mortality-shock",
         label: "Pandemic and mortality shock",
         description: "All-cause mortality rates and life expectancy; major shock periods.",
+        chartStory: "US life expectancy at birth. A drop shows a mortality shock (e.g. COVID in 2020–2021); recovery shows resilience.",
         source: {
           provider: "World Bank via FRED",
           access: "CDC/NCHS-aligned life expectancy series",

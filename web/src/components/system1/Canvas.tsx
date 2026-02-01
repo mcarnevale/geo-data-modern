@@ -313,6 +313,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [dataByTileId, setDataByTileId] = useState<Record<string, TileDataState>>({});
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
+  const [infoTrackId, setInfoTrackId] = useState<string | null>(null);
   const [cursorClientX, setCursorClientX] = useState(0);
   const [cursorClientY, setCursorClientY] = useState(0);
   const [tooltipOnLeft, setTooltipOnLeft] = useState(false);
@@ -550,6 +551,27 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
                 )}
               </div>
               <div className="mt-0.5 flex shrink-0 items-center gap-[2px]">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setInfoTrackId((prev) => (prev === track.id ? null : track.id));
+                  }}
+                  className="flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center border text-[0.75rem] font-normal"
+                  style={{
+                    borderColor: "var(--sys-border)",
+                    background: infoTrackId === track.id ? "var(--sys-fg)" : "var(--sys-titlebar)",
+                    color: infoTrackId === track.id ? "var(--sys-bg)" : "var(--sys-fg)",
+                    fontFamily: "ui-monospace, monospace",
+                    lineHeight: 1,
+                    cursor: "pointer",
+                  }}
+                  title="What this chart shows"
+                  aria-label="What this chart shows"
+                  aria-expanded={infoTrackId === track.id}
+                >
+                  i
+                </button>
                 {(() => {
                   const tile = getTileByTileId(track.tileId);
                   const sourceUrl = tile ? getSourceUrl(tile) : undefined;
@@ -599,6 +621,24 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
                 )}
               </div>
             </div>
+            {infoTrackId === track.id && (() => {
+              const tile = getTileByTileId(track.tileId);
+              const text = tile?.chartStory ?? tile?.description ?? "What this chart shows.";
+              return (
+                <div
+                  className="mb-[var(--sys-space-1)] border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-[0.8125rem] leading-snug"
+                  style={{
+                    borderColor: "var(--sys-border)",
+                    background: "var(--sys-titlebar)",
+                    color: "var(--sys-fg)",
+                  }}
+                  role="region"
+                  aria-label="Chart explanation"
+                >
+                  {text}
+                </div>
+              );
+            })()}
             <div className="relative w-full min-h-[40px] overflow-hidden">
               {getTileByTileId(track.tileId)?.fetch.kind !== "none" ? (
                 <DataChart
