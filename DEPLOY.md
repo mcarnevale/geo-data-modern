@@ -10,9 +10,9 @@ The Next.js app lives in the `web/` subdirectory. To deploy correctly:
 4. Click **Edit** and set it to `web`
 5. Save and redeploy
 
-## Option 2: vercel.json (already configured)
+## Option 2: Root directory not set
 
-The repo includes a root `vercel.json` that runs install and build from `web/`. If you still get 404 errors, use Option 1 instead.
+If you cannot set Root Directory in the dashboard, add a root `package.json` (already present) and set `installCommand` and `buildCommand` in Vercel project settings to run from `web/`. Prefer Option 1.
 
 ## Environment variables
 
