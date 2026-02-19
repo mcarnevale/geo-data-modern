@@ -33,17 +33,6 @@ export function MenuBar(_props: MenuBarProps) {
         >
           GeoData
         </span>
-        <nav className="flex items-center gap-1">
-          {["Canvas", "Scenes", "Data"].map((label) => (
-            <span
-              key={label}
-              className="rounded px-2.5 py-1 text-[13px]"
-              style={{ color: "var(--fg-muted)", cursor: "default" }}
-            >
-              {label}
-            </span>
-          ))}
-        </nav>
       </div>
       <button
         type="button"

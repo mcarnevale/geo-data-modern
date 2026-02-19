@@ -81,26 +81,29 @@ function DataChart({
   dataState,
   domainStartMs,
   domainEndMs,
+  chartHeight,
 }: {
   dataState: TileDataState | undefined;
   domainStartMs: number;
   domainEndMs: number;
+  chartHeight: number;
 }) {
   const chartId = useId();
   const vbW = 100;
-  const vbH = CHART_PADDING * 2 + CHART_HEIGHT;
-  // useMemo must be called unconditionally before any early returns
+  const vbH = CHART_PADDING * 2 + chartHeight;
+  // All hooks must be called unconditionally before any early returns
   const xScale = useMemo(
     () => makeLinearScale(domainStartMs, domainEndMs, VB_X_PADDING, vbW - VB_X_PADDING),
     [domainStartMs, domainEndMs]
   );
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
 
   const stateStyle: React.CSSProperties = {
     display: "flex",
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    height: CHART_HEIGHT,
+    height: chartHeight,
     fontSize: 13,
     color: "var(--fg-muted)",
     background: "rgba(255,255,255,0.02)",
@@ -138,7 +141,7 @@ function DataChart({
   const legendWidth = CHART_LEGEND_WIDTH_PX;
 
   function y(val: number): number {
-    return CHART_PADDING + CHART_HEIGHT - ((val - minVal) / range) * CHART_HEIGHT;
+    return CHART_PADDING + chartHeight - ((val - minVal) / range) * chartHeight;
   }
 
   const linePoints = (key: string): string => {
@@ -160,7 +163,7 @@ function DataChart({
       pts.push([xScale.xFromDateMs(parseDate(row.date)), y(v)]);
     });
     if (pts.length < 2) return "";
-    const bottom = CHART_PADDING + CHART_HEIGHT;
+    const bottom = CHART_PADDING + chartHeight;
     let d = `M ${pts[0][0]},${bottom}`;
     for (const [px, py] of pts) d += ` L ${px},${py}`;
     d += ` L ${pts[pts.length - 1][0]},${bottom} Z`;
@@ -168,7 +171,7 @@ function DataChart({
   };
 
   const gridYPositions = [0.25, 0.5, 0.75].map(
-    (frac) => CHART_PADDING + frac * CHART_HEIGHT
+    (frac) => CHART_PADDING + frac * chartHeight
   );
 
   return (
@@ -177,7 +180,7 @@ function DataChart({
         {/* Y-axis labels */}
         <div
           className="relative shrink-0"
-          style={{ width: legendWidth, minHeight: CHART_HEIGHT }}
+          style={{ width: legendWidth, minHeight: chartHeight }}
         >
           <span
             style={{
@@ -215,7 +218,7 @@ function DataChart({
             viewBox={`0 0 ${vbW} ${vbH}`}
             preserveAspectRatio="none"
             width="100%"
-            height={CHART_HEIGHT}
+            height={chartHeight}
             className="block w-full"
             style={{ overflow: "visible" }}
           >
@@ -229,7 +232,7 @@ function DataChart({
                     id={safeId}
                     x1="0"
                     y1={CHART_PADDING}
-                    y2={CHART_PADDING + CHART_HEIGHT}
+                    y2={CHART_PADDING + chartHeight}
                     x2="0"
                     gradientUnits="userSpaceOnUse"
                   >
@@ -254,52 +257,77 @@ function DataChart({
               />
             ))}
 
-            {/* Area fills */}
-            {seriesKeys.map((key, i) => (
-              <path
-                key={`area-${key}`}
-                d={areaPath(key)}
-                fill={`url(#${chartId}-grad-${i})`}
-              />
-            ))}
+            {/* Area fills — skip hidden series */}
+            {seriesKeys.map((key, i) =>
+              hiddenSeries.has(key) ? null : (
+                <path
+                  key={`area-${key}`}
+                  d={areaPath(key)}
+                  fill={`url(#${chartId}-grad-${i})`}
+                />
+              )
+            )}
 
-            {/* Lines */}
-            {seriesKeys.map((key, i) => (
-              <polyline
-                key={key}
-                fill="none"
-                stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                strokeWidth="1.5"
-                points={linePoints(key)}
-                vectorEffect="non-scaling-stroke"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            ))}
+            {/* Lines — skip hidden series */}
+            {seriesKeys.map((key, i) =>
+              hiddenSeries.has(key) ? null : (
+                <polyline
+                  key={key}
+                  fill="none"
+                  stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  strokeWidth="1.5"
+                  points={linePoints(key)}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              )
+            )}
           </svg>
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legend — clickable toggles */}
       <div
         className="flex flex-wrap items-center gap-x-3 gap-y-1"
         style={{ paddingLeft: legendWidth }}
       >
-        {seriesKeys.map((key, i) => (
-          <span key={key} className="flex shrink-0 items-center gap-1.5">
-            <span
-              className="shrink-0"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "var(--radius-sm)",
-                backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length],
-                display: "inline-block",
+        {seriesKeys.map((key, i) => {
+          const color = SERIES_COLORS[i % SERIES_COLORS.length];
+          const hidden = hiddenSeries.has(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setHiddenSeries((prev) => {
+                  const next = new Set(prev);
+                  next.has(key) ? next.delete(key) : next.add(key);
+                  return next;
+                });
               }}
-            />
-            <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>{meta.series[key] ?? key}</span>
-          </span>
-        ))}
+              className="flex shrink-0 items-center gap-1.5"
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+              title={hidden ? `Show ${meta.series[key] ?? key}` : `Hide ${meta.series[key] ?? key}`}
+            >
+              <span
+                className="shrink-0"
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "var(--radius-sm)",
+                  backgroundColor: hidden ? "transparent" : color,
+                  border: `1.5px solid ${color}`,
+                  display: "inline-block",
+                  transition: "background-color 0.1s",
+                }}
+              />
+              <span style={{ fontSize: 11, color: "var(--fg-muted)", opacity: hidden ? 0.4 : 1, transition: "opacity 0.1s" }}>
+                {meta.series[key] ?? key}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -380,6 +408,7 @@ function CanvasTimeline({
 export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
   const [domainStartMs, setDomainStartMs] = useState(DEFAULT_DOMAIN_START_MS);
   const [domainEndMs, setDomainEndMs] = useState(DEFAULT_DOMAIN_END_MS);
+  const [chartHeight, setChartHeight] = useState(CHART_HEIGHT);
   // #region agent log
   const loggedDomainRef = useRef(false);
   if (tracks.length > 0 && !loggedDomainRef.current) {
@@ -577,7 +606,20 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
       className="flex h-7 shrink-0 items-center justify-between border-t px-4"
       style={{ borderColor: "var(--border-subtle)" }}
     >
-      <span style={{ fontSize: 12, color: "var(--fg-faint)" }}>Ready</span>
+      <div className="flex items-center gap-3">
+        <span style={{ fontSize: 12, color: "var(--fg-faint)" }}>Ready</span>
+        <input
+          type="range"
+          min={60}
+          max={360}
+          step={10}
+          value={chartHeight}
+          onChange={(e) => setChartHeight(Number(e.target.value))}
+          style={{ width: 80, accentColor: "var(--accent)", cursor: "pointer" }}
+          title={`Chart height: ${chartHeight}px`}
+          aria-label="Chart height"
+        />
+      </div>
       {isHovering && cursorDateMs != null ? (
         <span style={{ fontSize: 12, color: "var(--fg-muted)" }}>
           {formatDateForStatus(cursorDateMs)}
@@ -754,18 +796,19 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
               })()}
 
               {/* Chart */}
-              <div className="relative w-full" style={{ minHeight: CHART_HEIGHT }}>
+              <div className="relative w-full" style={{ minHeight: chartHeight }}>
                 {getTileByTileId(track.tileId)?.fetch.kind !== "none" ? (
                   <DataChart
                     dataState={dataByTileId[track.tileId]}
                     domainStartMs={domainStartMs}
                     domainEndMs={domainEndMs}
+                    chartHeight={chartHeight}
                   />
                 ) : (
                   <div
                     className="flex w-full flex-col items-center justify-center gap-1"
                     style={{
-                      height: CHART_HEIGHT,
+                      height: chartHeight,
                       background: "rgba(255,255,255,0.02)",
                       border: "1px solid var(--border-subtle)",
                       borderRadius: "var(--radius-sm)",
