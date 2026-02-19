@@ -1,83 +1,66 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: "Chicago";
-  src: url("/fonts/chicago-12-1.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Tiny5";
-  src: url("/fonts/Tiny5-Regular.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
-  /* System 1 UI tokens */
-  --sys-bg: #c0c0c0;
-  --sys-bg-dark: #a8a8a8;
-  --sys-fg: #000000;
-  --sys-border: #000000;
-  --sys-titlebar: #c0c0c0;
-  --sys-shadow: #000000;
+  /* Color tokens */
+  --bg:               #090910;
+  --surface:          #111119;
+  --surface-elevated: #1c1c2a;
+  --border-subtle:    rgba(255, 255, 255, 0.07);
+  --border:           rgba(255, 255, 255, 0.11);
+  --border-strong:    rgba(255, 255, 255, 0.18);
+  --accent:           #4f7cff;
+  --accent-muted:     rgba(79, 124, 255, 0.12);
+  --fg:               #e8e8f2;
+  --fg-muted:         #7878a0;
+  --fg-faint:         #4a4a68;
 
-  /* Spacing scale (px) */
-  --sys-space-1: 2px;
-  --sys-space-2: 4px;
-  --sys-space-3: 8px;
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
 
-  /* Legacy compatibility */
-  --background: var(--sys-bg);
-  --foreground: var(--sys-fg);
+  /* Radius */
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 8px;
+
+  /* Legacy sys token compatibility — remap to new tokens */
+  --sys-bg:       var(--bg);
+  --sys-bg-dark:  var(--surface);
+  --sys-fg:       var(--fg);
+  --sys-border:   var(--border);
+  --sys-titlebar: var(--surface);
+  --sys-shadow:   rgba(0, 0, 0, 0.5);
+  --sys-space-1:  var(--space-1);
+  --sys-space-2:  var(--space-2);
+  --sys-space-3:  var(--space-3);
+
+  /* Tailwind compat */
+  --background: var(--bg);
+  --foreground: var(--fg);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
-  --font-mono: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
-}
-
-* {
-  border-radius: 0;
+  --font-sans: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "Fira Code", ui-monospace, monospace;
 }
 
 html {
   font-size: 16px;
-  line-height: 1.25;
-  -webkit-font-smoothing: none;
-  font-smoothing: none;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background: var(--sys-bg);
-  color: var(--sys-fg);
-  font-family: "Chicago", "Chicago FLF", ui-monospace, "Monaco", "Menlo", monospace;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
   overflow: hidden;
-}
-
-/* Desktop texture: faint 1px grid + subtle noise (CSS-only, performant) */
-.desktop-texture {
-  background-color: var(--sys-bg);
-  background-image:
-    /* 1px grid */
-    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
-  background-size: 4px 4px;
-  position: relative;
-}
-
-.desktop-texture::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }

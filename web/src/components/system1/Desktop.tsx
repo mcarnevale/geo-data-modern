@@ -9,7 +9,6 @@ import { MenuBar } from "./MenuBar";
 import { ScenesWindow } from "./ScenesWindow";
 import { TileSetsWindow } from "./TileSetsWindow";
 import { DataPanel } from "./DataPanel";
-import { Window } from "./Window";
 
 function createSceneId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -38,6 +37,27 @@ function dedupeByTileId(tracks: Track[]): Track[] {
   });
 }
 
+function SidebarHeader({ label }: { label: string }) {
+  return (
+    <div
+      className="flex h-9 shrink-0 items-center border-b px-3"
+      style={{ borderColor: "var(--border-subtle)" }}
+    >
+      <span
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--fg-muted)",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export function Desktop() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -55,7 +75,6 @@ export function Desktop() {
     ? prototypeModels.find((m) => m.id === selectedModelId) ?? null
     : null;
 
-  // Load user and workspace on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -95,18 +114,11 @@ export function Desktop() {
     };
   }, []);
 
-  // Debounced autosave when state changes and user is logged in
   useEffect(() => {
     if (!isLoggedIn || !hasHydrated) return;
     setSaveStatus("Saving...");
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    const stateToSave = {
-      tracks,
-      scenes,
-      tileSets,
-      selectedModelId,
-      activeSceneId,
-    };
+    const stateToSave = { tracks, scenes, tileSets, selectedModelId, activeSceneId };
     saveTimeoutRef.current = setTimeout(async () => {
       saveTimeoutRef.current = null;
       try {
@@ -126,15 +138,7 @@ export function Desktop() {
         saveTimeoutRef.current = null;
       }
     };
-  }, [
-    isLoggedIn,
-    hasHydrated,
-    tracks,
-    scenes,
-    tileSets,
-    selectedModelId,
-    activeSceneId,
-  ]);
+  }, [isLoggedIn, hasHydrated, tracks, scenes, tileSets, selectedModelId, activeSceneId]);
 
   const handleAddTile = useCallback((model: RegistryModel, tile: TileDef) => {
     setTracks((prev) => {
@@ -162,12 +166,7 @@ export function Desktop() {
     (name: string) => {
       setScenes((prev) => [
         ...prev,
-        {
-          id: createSceneId(),
-          name,
-          tracks: [...tracks],
-          createdAt: Date.now(),
-        },
+        { id: createSceneId(), name, tracks: [...tracks], createdAt: Date.now() },
       ]);
     },
     [tracks]
@@ -178,9 +177,7 @@ export function Desktop() {
     if (sceneId == null) return;
     setScenes((current) => {
       const scene = current.find((s) => s.id === sceneId);
-      if (scene) {
-        setTracks(dedupeByTileId(scene.tracks));
-      }
+      if (scene) setTracks(dedupeByTileId(scene.tracks));
       return current;
     });
   }, []);
@@ -188,12 +185,7 @@ export function Desktop() {
   const handleSaveTileSet = useCallback((name: string) => {
     setTileSets((prev) => [
       ...prev,
-      {
-        id: createTileSetId(),
-        name,
-        tracks: [...tracks],
-        createdAt: Date.now(),
-      },
+      { id: createTileSetId(), name, tracks: [...tracks], createdAt: Date.now() },
     ]);
   }, [tracks]);
 
@@ -205,51 +197,67 @@ export function Desktop() {
     });
   }, []);
 
+  void saveStatus;
+
   return (
-    <div className="desktop-texture flex h-screen w-screen flex-col overflow-hidden">
+    <div
+      className="flex h-screen w-screen flex-col overflow-hidden"
+      style={{ background: "var(--bg)" }}
+    >
       <MenuBar />
+
       <div className="flex min-h-0 flex-1 flex-row">
-        <aside className="flex w-[200px] shrink-0 flex-col p-[var(--sys-space-3)]">
-          <Window title="MODELS" contentClassName="p-0" className="min-h-0 flex-1">
-            <div className="p-[var(--sys-space-2)] text-[1rem]">
-              <div className="space-y-[var(--sys-space-1)]">
-                {prototypeModels.map((model) => (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => setSelectedModelId(model.id)}
-                    className="w-full text-left"
-                    style={{
-                      color: "var(--sys-fg)",
-                      background: selectedModelId === model.id ? "var(--sys-titlebar)" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "var(--sys-space-1) 0",
-                    }}
-                  >
-                    {model.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Window>
-        </aside>
-
-        <aside className="flex w-[320px] min-h-0 shrink-0 flex-col overflow-hidden p-[var(--sys-space-3)]">
-          <DataPanel selectedModel={selectedModel} tracks={tracks} onAddTile={handleAddTile} onRemoveTile={handleRemoveTile} />
-        </aside>
-
-        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col p-[var(--sys-space-3)]">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <Window title="CANVAS" contentClassName="flex min-h-0 flex-1 flex-col p-0" className="min-h-0 w-full flex-1">
-              <Canvas tracks={tracks} onRemoveTrack={handleRemoveTrack} />
-            </Window>
+        {/* Sidebar 1: Models (192px) */}
+        <aside
+          className="flex w-48 shrink-0 flex-col"
+          style={{ borderRight: "1px solid var(--border-subtle)" }}
+        >
+          <SidebarHeader label="Models" />
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {prototypeModels.map((model) => (
+              <button
+                key={model.id}
+                type="button"
+                onClick={() => setSelectedModelId(model.id)}
+                className="w-full rounded px-2 py-1.5 text-left text-[13px] transition-colors"
+                style={{
+                  color: selectedModelId === model.id ? "var(--fg)" : "var(--fg-muted)",
+                  background:
+                    selectedModelId === model.id ? "var(--accent-muted)" : "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  borderLeft:
+                    selectedModelId === model.id
+                      ? "2px solid var(--accent)"
+                      : "2px solid transparent",
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                {model.name}
+              </button>
+            ))}
           </div>
+        </aside>
+
+        {/* Sidebar 2: Data Panel (288px) */}
+        <aside
+          className="flex w-72 min-h-0 shrink-0 flex-col overflow-hidden"
+          style={{ borderRight: "1px solid var(--border-subtle)" }}
+        >
+          <DataPanel
+            selectedModel={selectedModel}
+            tracks={tracks}
+            onAddTile={handleAddTile}
+            onRemoveTile={handleRemoveTile}
+          />
+        </aside>
+
+        {/* Main Canvas */}
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <Canvas tracks={tracks} onRemoveTrack={handleRemoveTrack} />
+
           {isScenesOpen && (
-            <div
-              className="absolute right-[var(--sys-space-3)] top-[var(--sys-space-3)] z-10"
-              aria-label="Scenes"
-            >
+            <div className="absolute right-4 top-4 z-10" aria-label="Scenes">
               <ScenesWindow
                 scenes={scenes}
                 activeSceneId={activeSceneId}
@@ -261,7 +269,7 @@ export function Desktop() {
           )}
           {isTileSetsOpen && (
             <div
-              className="absolute right-[var(--sys-space-3)] top-[var(--sys-space-3)] z-10"
+              className="absolute right-4 top-4 z-10"
               aria-label="Tile Sets"
               style={{ marginRight: isScenesOpen ? "280px" : 0 }}
             >

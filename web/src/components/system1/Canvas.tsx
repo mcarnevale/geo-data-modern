@@ -5,16 +5,17 @@ import { formatDateForStatus, makeLinearScale, parseDate } from "@/src/lib/timeS
 import { TIMELINE_START_DATE } from "@/src/lib/timeline";
 import { getTileByTileId, getSourceUrl } from "@/src/lib/data/modelRegistry";
 import type { TileDataPayload } from "@/src/lib/data/fetchers/types";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export interface CanvasProps {
   tracks: Track[];
   onRemoveTrack?: (trackId: string) => void;
 }
 
-const SERIES_COLORS = ["#0066cc", "#cc0000", "#008800", "#cc6600"] as const;
-const CHART_PADDING = 4;
-const CHART_LEGEND_WIDTH_PX = 48;
+const SERIES_COLORS = ["#4f7cff", "#f97316", "#22c55e", "#a855f7"] as const;
+const CHART_HEIGHT = 160;
+const CHART_PADDING = 8;
+const CHART_LEGEND_WIDTH_PX = 72;
 const VB_X_PADDING = 4;
 
 type TileDataState =
@@ -22,11 +23,6 @@ type TileDataState =
   | { status: "error" }
   | { status: "ok"; payload: TileDataPayload };
 
-/**
- * Value at dateMs for each series using the nearest observation (no interpolation).
- * Ensures the tooltip shows an actual data point so the scrubber label (e.g. 2023-Q4)
- * is always correct for the value shown.
- */
 function getValuesAtDateMs(payload: TileDataPayload, dateMs: number): Record<string, number | null> {
   const { meta, data } = payload;
   const seriesKeys = Object.keys(meta.series).filter((k) => k !== "date");
@@ -43,7 +39,6 @@ function getValuesAtDateMs(payload: TileDataPayload, dateMs: number): Record<str
       out[key] = null;
       continue;
     }
-    // Nearest observation by absolute time distance
     let nearest = points[0];
     let minDist = Math.abs(points[0].dateMs - dateMs);
     for (let i = 1; i < points.length; i++) {
@@ -64,13 +59,22 @@ function formatTooltipValue(v: number, units?: string): string {
     const rounded = Math.abs(v) >= 1e6 ? Math.round(v) : v;
     return "$" + rounded.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
-  // Always use commas for thousands separators
   if (Number.isInteger(v)) {
     return v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
-  // For decimals: show up to 2 decimal places, strip trailing zeros
-  const formatted = v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return formatted;
+  return v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatAxisLabel(val: number, units?: string): string {
+  const isDollars = units != null && /\$|dollar/i.test(units);
+  const prefix = isDollars ? "$" : "";
+  const abs = Math.abs(val);
+  if (abs >= 1e12) return prefix + (val / 1e12).toFixed(1) + "T";
+  if (abs >= 1e9) return prefix + (val / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return prefix + (val / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return prefix + (val / 1e3).toFixed(1) + "K";
+  if (!Number.isInteger(val)) return prefix + val.toFixed(1);
+  return prefix + val.toString();
 }
 
 function DataChart({
@@ -82,36 +86,37 @@ function DataChart({
   domainStartMs: number;
   domainEndMs: number;
 }) {
+  const chartId = useId();
+  const vbW = 100;
+  const vbH = CHART_PADDING * 2 + CHART_HEIGHT;
+  // useMemo must be called unconditionally before any early returns
+  const xScale = useMemo(
+    () => makeLinearScale(domainStartMs, domainEndMs, VB_X_PADDING, vbW - VB_X_PADDING),
+    [domainStartMs, domainEndMs]
+  );
+
+  const stateStyle: React.CSSProperties = {
+    display: "flex",
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    height: CHART_HEIGHT,
+    fontSize: 13,
+    color: "var(--fg-muted)",
+    background: "rgba(255,255,255,0.02)",
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid var(--border-subtle)",
+  };
+
   if (dataState == null || dataState.status === "loading") {
-    return (
-      <div
-        className="flex w-full items-center justify-center border py-[var(--sys-space-2)] text-[1rem]"
-        style={{ borderColor: "var(--sys-border)", background: "var(--sys-titlebar)", color: "var(--sys-fg)" }}
-      >
-        Loading data...
-      </div>
-    );
+    return <div style={stateStyle}>Loading data…</div>;
   }
   if (dataState.status === "error") {
-    return (
-      <div
-        className="flex w-full items-center justify-center border py-[var(--sys-space-2)] text-[1rem]"
-        style={{ borderColor: "var(--sys-border)", background: "var(--sys-titlebar)", color: "var(--sys-fg)" }}
-      >
-        Data unavailable
-      </div>
-    );
+    return <div style={stateStyle}>Data unavailable</div>;
   }
   const { meta, data } = dataState.payload;
   if (data.length === 0) {
-    return (
-      <div
-        className="flex w-full items-center justify-center border py-[var(--sys-space-2)] text-[1rem]"
-        style={{ borderColor: "var(--sys-border)", background: "var(--sys-titlebar)", color: "var(--sys-fg)" }}
-      >
-        No data yet
-      </div>
-    );
+    return <div style={stateStyle}>No data yet</div>;
   }
 
   const seriesKeys = Object.keys(meta.series).filter((k) => k !== "date");
@@ -130,79 +135,169 @@ function DataChart({
   if (maxVal <= minVal) maxVal = minVal + 1;
   const range = maxVal - minVal;
 
-  const chartHeight = 32;
   const legendWidth = CHART_LEGEND_WIDTH_PX;
-  const vbW = 100;
-  const xScale = useMemo(
-    () => makeLinearScale(domainStartMs, domainEndMs, VB_X_PADDING, vbW - VB_X_PADDING),
-    [domainStartMs, domainEndMs]
-  );
 
   function y(val: number): number {
-    return CHART_PADDING + chartHeight - ((val - minVal) / range) * chartHeight;
+    return CHART_PADDING + CHART_HEIGHT - ((val - minVal) / range) * CHART_HEIGHT;
   }
 
-  const points = (key: string) => {
+  const linePoints = (key: string): string => {
     const pts: string[] = [];
     data.forEach((row) => {
       const v = row[key];
       if (v == null || typeof v !== "number") return;
-      const dateMs = parseDate(row.date);
-      const xViewBox = xScale.xFromDateMs(dateMs);
+      const xViewBox = xScale.xFromDateMs(parseDate(row.date));
       pts.push(`${xViewBox},${y(v)}`);
     });
     return pts.join(" ");
   };
 
-  const svgHeight = 32;
-  const vbH = 40;
+  const areaPath = (key: string): string => {
+    const pts: Array<[number, number]> = [];
+    data.forEach((row) => {
+      const v = row[key];
+      if (v == null || typeof v !== "number") return;
+      pts.push([xScale.xFromDateMs(parseDate(row.date)), y(v)]);
+    });
+    if (pts.length < 2) return "";
+    const bottom = CHART_PADDING + CHART_HEIGHT;
+    let d = `M ${pts[0][0]},${bottom}`;
+    for (const [px, py] of pts) d += ` L ${px},${py}`;
+    d += ` L ${pts[pts.length - 1][0]},${bottom} Z`;
+    return d;
+  };
+
+  const gridYPositions = [0.25, 0.5, 0.75].map(
+    (frac) => CHART_PADDING + frac * CHART_HEIGHT
+  );
 
   return (
-    <div className="flex w-full flex-col">
-      <div className="flex w-full">
+    <div className="flex w-full flex-col gap-2">
+      <div className="flex w-full items-stretch">
+        {/* Y-axis labels */}
         <div
-          className="flex shrink-0"
-          style={{ width: legendWidth }}
-          aria-hidden
-        />
+          className="relative shrink-0"
+          style={{ width: legendWidth, minHeight: CHART_HEIGHT }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: CHART_PADDING,
+              right: 8,
+              fontSize: 10,
+              color: "var(--fg-muted)",
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+              transform: "translateY(-50%)",
+            }}
+          >
+            {formatAxisLabel(maxVal, meta.units)}
+          </span>
+          <span
+            style={{
+              position: "absolute",
+              bottom: CHART_PADDING,
+              right: 8,
+              fontSize: 10,
+              color: "var(--fg-muted)",
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+              transform: "translateY(50%)",
+            }}
+          >
+            {formatAxisLabel(minVal, meta.units)}
+          </span>
+        </div>
+
+        {/* SVG chart */}
         <div className="min-w-0 flex-1">
           <svg
             viewBox={`0 0 ${vbW} ${vbH}`}
             preserveAspectRatio="none"
             width="100%"
-            height={svgHeight}
+            height={CHART_HEIGHT}
             className="block w-full"
             style={{ overflow: "visible" }}
           >
+            <defs>
+              {seriesKeys.map((key, i) => {
+                const color = SERIES_COLORS[i % SERIES_COLORS.length];
+                const safeId = `${chartId}-grad-${i}`;
+                return (
+                  <linearGradient
+                    key={key}
+                    id={safeId}
+                    x1="0"
+                    y1={CHART_PADDING}
+                    y2={CHART_PADDING + CHART_HEIGHT}
+                    x2="0"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                  </linearGradient>
+                );
+              })}
+            </defs>
+
+            {/* Gridlines */}
+            {gridYPositions.map((yPos) => (
+              <line
+                key={yPos}
+                x1={0}
+                y1={yPos}
+                x2={vbW}
+                y2={yPos}
+                stroke="rgba(255,255,255,0.05)"
+                strokeWidth="0.4"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+
+            {/* Area fills */}
+            {seriesKeys.map((key, i) => (
+              <path
+                key={`area-${key}`}
+                d={areaPath(key)}
+                fill={`url(#${chartId}-grad-${i})`}
+              />
+            ))}
+
+            {/* Lines */}
             {seriesKeys.map((key, i) => (
               <polyline
                 key={key}
                 fill="none"
                 stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                strokeWidth="0.5"
-                points={points(key)}
+                strokeWidth="1.5"
+                points={linePoints(key)}
                 vectorEffect="non-scaling-stroke"
+                strokeLinejoin="round"
+                strokeLinecap="round"
               />
             ))}
           </svg>
         </div>
       </div>
+
+      {/* Legend */}
       <div
-        className="flex flex-wrap items-center gap-x-[var(--sys-space-2)] gap-y-0 pt-[var(--sys-space-1)] text-[10px] uppercase"
-        style={{ fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}
+        className="flex flex-wrap items-center gap-x-3 gap-y-1"
+        style={{ paddingLeft: legendWidth }}
       >
         {seriesKeys.map((key, i) => (
-          <span key={key} className="flex shrink-0 items-center gap-1">
+          <span key={key} className="flex shrink-0 items-center gap-1.5">
             <span
-              className="shrink-0 border border-black"
+              className="shrink-0"
               style={{
-                width: 6,
-                height: 6,
+                width: 10,
+                height: 10,
+                borderRadius: "var(--radius-sm)",
                 backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length],
-                borderColor: "var(--sys-border)",
+                display: "inline-block",
               }}
             />
-            <span style={{ color: "var(--sys-fg)" }}>{meta.series[key] ?? key}</span>
+            <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>{meta.series[key] ?? key}</span>
           </span>
         ))}
       </div>
@@ -211,7 +306,6 @@ function DataChart({
 }
 
 const DEFAULT_DOMAIN_START_MS = parseDate(TIMELINE_START_DATE);
-// Use end of 2025 explicitly so the timeline and scrubber extend to 2025-Q4 regardless of TIMELINE_END_DATE string parsing.
 const DEFAULT_DOMAIN_END_MS = new Date(2025, 11, 31).getTime();
 
 function getDecadeTicks(domainStartMs: number, domainEndMs: number): number[] {
@@ -246,20 +340,18 @@ function CanvasTimeline({
   );
   return (
     <div
-      className="flex w-full shrink-0 border-b py-[var(--sys-space-1)]"
-      style={{ borderColor: "var(--sys-border)", color: "var(--sys-fg)" }}
+      className="flex w-full shrink-0 border-b px-4 py-2"
+      style={{ borderColor: "var(--border-subtle)" }}
     >
       <div
-        className="flex shrink-0 flex-col justify-end text-[10px] uppercase"
-        style={{ width: CHART_LEGEND_WIDTH_PX, fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}
+        className="flex shrink-0 items-end"
+        style={{ width: CHART_LEGEND_WIDTH_PX, paddingRight: 8 }}
       >
-        <span>Year</span>
+        <span style={{ fontSize: 10, color: "var(--fg-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Year
+        </span>
       </div>
-      <div
-        ref={chartAreaRef}
-        className="relative min-h-[20px] flex-1"
-        style={{ minWidth: 0 }}
-      >
+      <div ref={chartAreaRef} className="relative min-h-[20px] flex-1" style={{ minWidth: 0 }}>
         {chartInnerWidthPx > 0 &&
           ticks.map((dateMs) => {
             const x = scale.xFromDateMs(dateMs);
@@ -267,12 +359,13 @@ function CanvasTimeline({
             return (
               <span
                 key={dateMs}
-                className="absolute bottom-0 text-[10px] uppercase"
+                className="absolute bottom-0"
                 style={{
                   left: `${x}px`,
                   transform: "translateX(-50%)",
-                  fontFamily: '"Tiny5", sans-serif',
-                  fontWeight: 400,
+                  fontSize: 10,
+                  color: "var(--fg-muted)",
+                  letterSpacing: "0.04em",
                 }}
               >
                 {year}
@@ -314,6 +407,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
   const [dataByTileId, setDataByTileId] = useState<Record<string, TileDataState>>({});
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
   const [infoTrackId, setInfoTrackId] = useState<string | null>(null);
+  const [isHoveringButtons, setIsHoveringButtons] = useState(false);
   const [cursorClientX, setCursorClientX] = useState(0);
   const [cursorClientY, setCursorClientY] = useState(0);
   const [tooltipOnLeft, setTooltipOnLeft] = useState(false);
@@ -322,20 +416,22 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
   const [tooltipHeight, setTooltipHeight] = useState(0);
   const startedFetchRef = useRef<Set<string>>(new Set());
   const tooltipRef = useRef<HTMLDivElement>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const rafIdRef = useRef<number | null>(null);
   const pendingClientXRef = useRef<number | null>(null);
 
-  // Fetch data for each track whose tile has fetch.kind !== 'none'
+  void setDomainStartMs;
+  void setDomainEndMs;
+  void chartAreaLeftOffset;
+  void setChartAreaLeftOffset;
+
   useEffect(() => {
     const fetchableTileIds = new Set<string>();
     for (const track of tracks) {
       const tile = getTileByTileId(track.tileId);
       if (tile?.fetch.kind !== "none") fetchableTileIds.add(track.tileId);
     }
-    // Allow refetch when a tileId is no longer on canvas
     for (const tileId of startedFetchRef.current) {
       if (!fetchableTileIds.has(tileId)) startedFetchRef.current.delete(tileId);
     }
@@ -376,7 +472,6 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
     }
   }, [tracks]);
 
-  // Measure chart area width and left offset
   useLayoutEffect(() => {
     const chartEl = chartAreaRef.current;
     const containerEl = containerRef.current;
@@ -393,8 +488,8 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
     return () => ro.disconnect();
   }, [tracks.length]);
 
-  // Flip tooltip to left when not enough room on the right; only show tooltip if cursor is within data range
   const tooltipVisible =
+    !isHoveringButtons &&
     isHovering &&
     hoveredTrackId != null &&
     cursorDateMs != null &&
@@ -404,12 +499,12 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
       if (dataState?.status !== "ok") return false;
       const { data } = dataState.payload;
       if (data.length === 0) return false;
-      // Check if cursor is within the data range (min to max observation date)
       const dates = data.map((row) => parseDate(row.date));
       const minDate = Math.min(...dates);
       const maxDate = Math.max(...dates);
       return cursorDateMs >= minDate && cursorDateMs <= maxDate;
     })();
+
   useLayoutEffect(() => {
     if (!tooltipVisible) {
       setTooltipOnLeft(false);
@@ -422,9 +517,9 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
     const height = rect.height;
     setTooltipWidth(width);
     setTooltipHeight(height);
-    const fitsRight = cursorClientX + 12 + width <= window.innerWidth;
+    const fitsRight = cursorClientX + 16 + width <= window.innerWidth;
     setTooltipOnLeft(!fitsRight);
-    const fitsBelow = cursorClientY + 12 + height <= window.innerHeight;
+    const fitsBelow = cursorClientY + 16 + height <= window.innerHeight;
     setTooltipAbove(!fitsBelow);
   }, [tooltipVisible, cursorClientX, cursorClientY, hoveredTrackId]);
 
@@ -479,12 +574,14 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
 
   const statusBar = (
     <div
-      className="flex h-6 shrink-0 items-center justify-between border-t px-[var(--sys-space-2)] text-[1rem]"
-      style={{ borderColor: "var(--sys-border)", background: "var(--sys-titlebar)", color: "var(--sys-fg)" }}
+      className="flex h-7 shrink-0 items-center justify-between border-t px-4"
+      style={{ borderColor: "var(--border-subtle)" }}
     >
-      <span>Ready</span>
+      <span style={{ fontSize: 12, color: "var(--fg-faint)" }}>Ready</span>
       {isHovering && cursorDateMs != null ? (
-        <span>{formatDateForStatus(cursorDateMs)}</span>
+        <span style={{ fontSize: 12, color: "var(--fg-muted)" }}>
+          {formatDateForStatus(cursorDateMs)}
+        </span>
       ) : (
         <span>&nbsp;</span>
       )}
@@ -495,8 +592,8 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div
-          className="flex flex-1 items-center justify-center p-[var(--sys-space-3)] text-[1rem]"
-          style={{ color: "var(--sys-fg)" }}
+          className="flex flex-1 items-center justify-center"
+          style={{ color: "var(--fg-muted)", fontSize: 13 }}
         >
           No tracks yet. Add data from a model.
         </div>
@@ -510,7 +607,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
       <div className="min-h-0 flex-1 overflow-auto">
         <div
           ref={containerRef}
-          className="relative flex min-h-full flex-col gap-0 p-[var(--sys-space-3)]"
+          className="relative flex min-h-full flex-col"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
@@ -520,158 +617,185 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
             chartInnerWidthPx={chartInnerWidthPx}
             chartAreaRef={chartAreaRef}
           />
+
           {tracks.map((track) => (
-          <div
-            key={track.id}
-            className="flex flex-col border-b py-[var(--sys-space-2)]"
-            style={{ borderColor: "var(--sys-border)" }}
-            onMouseEnter={() => setHoveredTrackId(track.id)}
-            onMouseLeave={() => setHoveredTrackId(null)}
-          >
             <div
-              className="mb-[var(--sys-space-1)] flex items-start gap-x-[var(--sys-space-2)] leading-tight"
-              style={{ color: "var(--sys-fg)" }}
+              key={track.id}
+              className="flex flex-col border-b px-4 py-4"
+              style={{
+                borderColor: "var(--border-subtle)",
+                background: hoveredTrackId === track.id ? "rgba(255,255,255,0.015)" : "transparent",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={() => setHoveredTrackId(track.id)}
+              onMouseLeave={() => setHoveredTrackId(null)}
             >
-              <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-[var(--sys-space-2)] gap-y-0">
-                <span className="text-[0.875rem]">{track.tileName}</span>
-                <span
-                  className="text-[10px] uppercase opacity-80"
-                  style={{ fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}
-                >
-                  {track.modelName}
-                </span>
-                {track.tileId === "wealth-distribution" && (
-                  <span
-                    className="text-[10px] uppercase opacity-70"
-                    style={{ fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}
-                    title="Distributional Financial Accounts; series available from 1989"
-                  >
-                    DFA via FRED (from 1989)
+              {/* Track header */}
+              <div className="mb-3 flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fg)" }}>
+                    {track.tileName}
                   </span>
-                )}
-              </div>
-              <div className="mt-0.5 flex shrink-0 items-center gap-[2px]">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setInfoTrackId((prev) => (prev === track.id ? null : track.id));
-                  }}
-                  className="flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center border text-[0.75rem] font-normal"
-                  style={{
-                    borderColor: "var(--sys-border)",
-                    background: infoTrackId === track.id ? "var(--sys-fg)" : "var(--sys-titlebar)",
-                    color: infoTrackId === track.id ? "var(--sys-bg)" : "var(--sys-fg)",
-                    fontFamily: "ui-monospace, monospace",
-                    lineHeight: 1,
-                    cursor: "pointer",
-                  }}
-                  title="What this chart shows"
-                  aria-label="What this chart shows"
-                  aria-expanded={infoTrackId === track.id}
-                >
-                  i
-                </button>
-                {(() => {
-                  const tile = getTileByTileId(track.tileId);
-                  const sourceUrl = tile ? getSourceUrl(tile) : undefined;
-                  return sourceUrl ? (
-                    <a
-                      href={sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-[1.125rem] w-[1.125rem] items-center justify-center border text-[0.75rem]"
-                      style={{
-                        borderColor: "var(--sys-border)",
-                        background: "var(--sys-titlebar)",
-                        color: "var(--sys-fg)",
-                        fontFamily: "ui-monospace, monospace",
-                        lineHeight: 1,
-                        cursor: "pointer",
-                        textDecoration: "none",
-                      }}
-                      title="Open source data in new window"
-                      aria-label="Open source data in new window"
+                  <span
+                    className="ml-2"
+                    style={{ fontSize: 11, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                  >
+                    {track.modelName}
+                  </span>
+                  {track.tileId === "wealth-distribution" && (
+                    <span
+                      className="ml-2"
+                      style={{ fontSize: 11, color: "var(--fg-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                      title="Distributional Financial Accounts; series available from 1989"
                     >
-                      ↗
-                    </a>
-                  ) : null;
-                })()}
-                {onRemoveTrack && (
+                      DFA via FRED (from 1989)
+                    </span>
+                  )}
+                </div>
+
+                {/* Track action buttons */}
+                <div
+                  className="flex shrink-0 items-center gap-1"
+                  onMouseEnter={() => setIsHoveringButtons(true)}
+                  onMouseLeave={() => setIsHoveringButtons(false)}
+                >
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onRemoveTrack(track.id);
+                      setInfoTrackId((prev) => (prev === track.id ? null : track.id));
                     }}
-                    className="flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center border text-[0.75rem]"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center text-[12px] transition-colors"
                     style={{
-                      borderColor: "var(--sys-border)",
-                      background: "var(--sys-titlebar)",
-                      color: "var(--sys-fg)",
-                      fontFamily: "ui-monospace, monospace",
-                      lineHeight: 1,
+                      borderRadius: "var(--radius-sm)",
+                      background: infoTrackId === track.id ? "var(--accent-muted)" : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${infoTrackId === track.id ? "var(--accent)" : "var(--border)"}`,
+                      color: infoTrackId === track.id ? "var(--accent)" : "var(--fg-muted)",
                       cursor: "pointer",
+                      fontFamily: "ui-monospace, monospace",
                     }}
-                    title="Remove from canvas"
-                    aria-label="Remove from canvas"
+                    title="What this chart shows"
+                    aria-label="What this chart shows"
+                    aria-expanded={infoTrackId === track.id}
                   >
-                    ×
+                    i
                   </button>
+
+                  {(() => {
+                    const tile = getTileByTileId(track.tileId);
+                    const sourceUrl = tile ? getSourceUrl(tile) : undefined;
+                    return sourceUrl ? (
+                      <a
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-6 w-6 items-center justify-center text-[12px] transition-colors"
+                        style={{
+                          borderRadius: "var(--radius-sm)",
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                          fontFamily: "ui-monospace, monospace",
+                          cursor: "pointer",
+                          textDecoration: "none",
+                        }}
+                        title="Open source data in new window"
+                        aria-label="Open source data in new window"
+                      >
+                        ↗
+                      </a>
+                    ) : null;
+                  })()}
+
+                  {onRemoveTrack && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveTrack(track.id);
+                      }}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center text-[12px] transition-colors"
+                      style={{
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid var(--border)",
+                        color: "var(--fg-muted)",
+                        cursor: "pointer",
+                        fontFamily: "ui-monospace, monospace",
+                      }}
+                      title="Remove from canvas"
+                      aria-label="Remove from canvas"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Info panel */}
+              {infoTrackId === track.id && (() => {
+                const tile = getTileByTileId(track.tileId);
+                const text = tile?.chartStory ?? tile?.description ?? "What this chart shows.";
+                return (
+                  <div
+                    className="mb-3 px-3 py-2 text-[13px] leading-relaxed"
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: "var(--radius-sm)",
+                      color: "var(--fg-muted)",
+                    }}
+                    role="region"
+                    aria-label="Chart explanation"
+                  >
+                    {text}
+                  </div>
+                );
+              })()}
+
+              {/* Chart */}
+              <div className="relative w-full" style={{ minHeight: CHART_HEIGHT }}>
+                {getTileByTileId(track.tileId)?.fetch.kind !== "none" ? (
+                  <DataChart
+                    dataState={dataByTileId[track.tileId]}
+                    domainStartMs={domainStartMs}
+                    domainEndMs={domainEndMs}
+                  />
+                ) : (
+                  <div
+                    className="flex w-full flex-col items-center justify-center gap-1"
+                    style={{
+                      height: CHART_HEIGHT,
+                      background: "rgba(255,255,255,0.02)",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: "var(--radius-sm)",
+                      color: "var(--fg-muted)",
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>{track.tileName}</span>
+                    <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-faint)" }}>
+                      Data not yet available
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
-            {infoTrackId === track.id && (() => {
-              const tile = getTileByTileId(track.tileId);
-              const text = tile?.chartStory ?? tile?.description ?? "What this chart shows.";
-              return (
-                <div
-                  className="mb-[var(--sys-space-1)] border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-[0.8125rem] leading-snug"
-                  style={{
-                    borderColor: "var(--sys-border)",
-                    background: "var(--sys-titlebar)",
-                    color: "var(--sys-fg)",
-                  }}
-                  role="region"
-                  aria-label="Chart explanation"
-                >
-                  {text}
-                </div>
-              );
-            })()}
-            <div className="relative w-full min-h-[40px] overflow-hidden">
-              {getTileByTileId(track.tileId)?.fetch.kind !== "none" ? (
-                <DataChart
-                  dataState={dataByTileId[track.tileId]}
-                  domainStartMs={domainStartMs}
-                  domainEndMs={domainEndMs}
-                />
-              ) : (
-                <div
-                  className="flex w-full flex-col items-center justify-center gap-[var(--sys-space-1)] border py-[var(--sys-space-2)] px-[var(--sys-space-2)]"
-                  style={{ borderColor: "var(--sys-border)", background: "var(--sys-titlebar)", color: "var(--sys-fg)" }}
-                >
-                  <span className="text-[1rem]">{track.tileName}</span>
-                  <span className="text-[10px] uppercase opacity-70" style={{ fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}>
-                    Data not yet available
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+          ))}
 
+          {/* Cursor hairline */}
           {isHovering && cursorLeftPx !== null && (
             <div
               className="pointer-events-none absolute top-0 bottom-0 z-10 w-px"
               style={{
                 left: `${cursorLeftPx}px`,
-                backgroundColor: "var(--sys-border)",
+                background: "var(--accent)",
+                opacity: 0.5,
               }}
               aria-hidden
             />
           )}
 
+          {/* Tooltip */}
           {tooltipVisible &&
             (() => {
               const track = tracks.find((t) => t.id === hoveredTrackId)!;
@@ -680,33 +804,37 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
               const { meta } = dataState.payload;
               const entries = Object.keys(meta.series)
                 .filter((k) => k !== "date")
-                .map((key) => ({ label: meta.series[key] ?? key, value: values[key] }))
+                .map((key, i) => ({ label: meta.series[key] ?? key, value: values[key], color: SERIES_COLORS[i % SERIES_COLORS.length] }))
                 .filter((e) => e.value != null);
               if (entries.length === 0) return null;
               return (
                 <div
                   ref={tooltipRef}
-                  className="pointer-events-none fixed z-30 border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-[15px]"
+                  className="pointer-events-none fixed z-30 px-3 py-2"
                   style={{
-                    left: tooltipOnLeft ? cursorClientX - 12 - tooltipWidth : cursorClientX + 12,
-                    top: tooltipAbove ? cursorClientY - 12 - tooltipHeight : cursorClientY + 12,
-                    borderColor: "var(--sys-border)",
-                    backgroundColor: "var(--sys-titlebar)",
-                    color: "var(--sys-fg)",
-                    fontFamily: '"Tiny5", sans-serif',
-                    fontWeight: 400,
-                    boxShadow: "2px 2px 0 0 var(--sys-shadow)",
+                    left: tooltipOnLeft ? cursorClientX - 16 - tooltipWidth : cursorClientX + 16,
+                    top: tooltipAbove ? cursorClientY - 16 - tooltipHeight : cursorClientY + 16,
+                    background: "var(--surface-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                    minWidth: 140,
                   }}
                   role="tooltip"
                   aria-live="polite"
                 >
-                  <div className="font-semibold uppercase" style={{ marginBottom: 2 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     {formatDateForStatus(cursorDateMs!)}
                   </div>
-                  {entries.map(({ label, value }) => (
-                    <div key={label} className="flex justify-between gap-4">
-                      <span>{label}</span>
-                      <span style={{ marginLeft: 8 }}>{formatTooltipValue(value as number, meta.units)}</span>
+                  {entries.map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between gap-4" style={{ marginTop: 3 }}>
+                      <span className="flex items-center gap-1.5" style={{ fontSize: 12, color: "var(--fg-muted)" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "2px", background: color, display: "inline-block", flexShrink: 0 }} />
+                        {label}
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--fg)", fontWeight: 500 }}>
+                        {formatTooltipValue(value as number, meta.units)}
+                      </span>
                     </div>
                   ))}
                 </div>

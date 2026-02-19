@@ -8,10 +8,27 @@ export interface TileSetsWindowProps {
   onClose: () => void;
 }
 
-const btnStyle = {
-  borderColor: "var(--sys-border)" as const,
-  color: "var(--sys-fg)" as const,
-  background: "var(--sys-titlebar)" as const,
+const ghostBtn: React.CSSProperties = {
+  width: "100%",
+  textAlign: "left",
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  color: "var(--fg-muted)",
+  fontSize: 13,
+  padding: "6px 10px",
+  cursor: "pointer",
+};
+
+const actionBtn: React.CSSProperties = {
+  width: "100%",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  color: "var(--fg-muted)",
+  fontSize: 13,
+  padding: "6px 10px",
+  cursor: "pointer",
 };
 
 export function TileSetsWindow({
@@ -21,17 +38,12 @@ export function TileSetsWindow({
   onClose,
 }: TileSetsWindowProps) {
   return (
-    <Window title="TILE SETS" className="w-64 shrink-0">
-      <div className="flex flex-col gap-[var(--sys-space-3)]">
-        <ul className="space-y-[var(--sys-space-1)]">
+    <Window title="Tile Sets" className="w-64 shrink-0">
+      <div className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-1">
           {tileSets.map((ts) => (
             <li key={ts.id}>
-              <button
-                type="button"
-                onClick={() => onApplyTileSet(ts.id)}
-                className="w-full border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-left text-[1rem]"
-                style={btnStyle}
-              >
+              <button type="button" onClick={() => onApplyTileSet(ts.id)} style={ghostBtn}>
                 {ts.name}
               </button>
             </li>
@@ -43,17 +55,11 @@ export function TileSetsWindow({
             const name = window.prompt("Tile set name:");
             if (name != null && name.trim()) onSaveTileSet(name.trim());
           }}
-          className="border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-[1rem]"
-          style={btnStyle}
+          style={actionBtn}
         >
           Save Tile Set
         </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="border px-[var(--sys-space-2)] py-[var(--sys-space-1)] text-[1rem]"
-          style={btnStyle}
-        >
+        <button type="button" onClick={onClose} style={actionBtn}>
           Close
         </button>
       </div>

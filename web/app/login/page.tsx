@@ -1,6 +1,5 @@
 "use client";
 
-import { Window } from "@/src/components/system1/Window";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -23,48 +22,62 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim(),
-          password,
-        }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
-        setMessage({
-          type: "error",
-          text: (data.error as string) ?? "Login failed",
-        });
+        setMessage({ type: "error", text: (data.error as string) ?? "Login failed" });
         return;
       }
-
       router.push(from);
       router.refresh();
     } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Something went wrong",
-      });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Something went wrong" });
     } finally {
       setLoading(false);
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius)",
+    color: "var(--fg)",
+    padding: "8px 12px",
+    fontSize: "14px",
+    width: "100%",
+    boxSizing: "border-box",
+    outline: "none",
+    transition: "border-color 0.15s",
+  };
+
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-center gap-[var(--sys-space-3)] p-[var(--sys-space-3)]"
-      style={{ background: "var(--sys-bg)" }}
+      className="flex min-h-screen flex-col items-center justify-center p-6"
+      style={{ background: "var(--bg)" }}
     >
-      <h1
-        className="text-[1.5rem] font-semibold"
-        style={{ color: "var(--sys-fg)" }}
+      <div
+        className="w-full max-w-sm"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          padding: "32px",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+        }}
       >
-        GeoData
-      </h1>
-      <Window title="LOGIN" className="w-full max-w-sm">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-[var(--sys-space-3)]">
-          <label className="flex flex-col gap-[var(--sys-space-1)]">
-            <span className="text-[1rem]" style={{ color: "var(--sys-fg)" }}>
+        <div className="mb-8 text-center">
+          <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: "var(--fg)" }}>
+            GeoData
+          </h1>
+          <p className="mt-1 text-[13px]" style={{ color: "var(--fg-muted)" }}>
+            Sign in to continue
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium uppercase tracking-wider" style={{ color: "var(--fg-muted)" }}>
               Username
             </span>
             <input
@@ -75,17 +88,15 @@ function LoginForm() {
               autoComplete="username"
               autoCapitalize="off"
               autoCorrect="off"
-              className="border px-[var(--sys-space-2)] py-[var(--sys-space-2)] text-[1rem]"
-              style={{
-                borderColor: "var(--sys-border)",
-                color: "var(--sys-fg)",
-                background: "white",
-              }}
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
               required
             />
           </label>
-          <label className="flex flex-col gap-[var(--sys-space-1)]">
-            <span className="text-[1rem]" style={{ color: "var(--sys-fg)" }}>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium uppercase tracking-wider" style={{ color: "var(--fg-muted)" }}>
               Password
             </span>
             <input
@@ -94,57 +105,54 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               autoComplete="current-password"
-              className="border px-[var(--sys-space-2)] py-[var(--sys-space-2)] text-[1rem]"
-              style={{
-                borderColor: "var(--sys-border)",
-                color: "var(--sys-fg)",
-                background: "white",
-              }}
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
               required
             />
           </label>
+
+          {message && (
+            <p className="text-[13px]" style={{ color: "#f87171" }} role="alert">
+              {message.text}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full border px-[var(--sys-space-2)] py-[var(--sys-space-2)] text-[1rem]"
+            className="mt-1 w-full rounded py-2.5 text-[14px] font-semibold transition-opacity"
             style={{
-              borderColor: "var(--sys-border)",
-              color: "var(--sys-fg)",
-              background: "var(--sys-titlebar)",
+              background: "var(--accent)",
+              color: "#fff",
+              border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+              borderRadius: "var(--radius)",
             }}
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
-          {message && (
-            <p
-              className="text-[1rem]"
-              style={{ color: "var(--sys-fg)", opacity: 1 }}
-              role="alert"
-            >
-              {message.text}
-            </p>
-          )}
         </form>
-      </Window>
+      </div>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div
-        className="flex min-h-screen flex-col items-center justify-center gap-[var(--sys-space-3)] p-[var(--sys-space-3)]"
-        style={{ background: "var(--sys-bg)" }}
-      >
-        <h1 className="text-[1.5rem] font-semibold" style={{ color: "var(--sys-fg)" }}>
-          GeoData
-        </h1>
-        <div className="w-full max-w-sm text-center" style={{ color: "var(--sys-fg)" }}>
-          Loading…
+    <Suspense
+      fallback={
+        <div
+          className="flex min-h-screen flex-col items-center justify-center"
+          style={{ background: "var(--bg)" }}
+        >
+          <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
+            Loading…
+          </p>
         </div>
-      </div>
-    }>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

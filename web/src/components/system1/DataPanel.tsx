@@ -1,6 +1,5 @@
 import type { RegistryModel, TileDef } from "@/src/lib/data/modelRegistry";
 import type { Track } from "@/src/lib/types";
-import { Window } from "./Window";
 
 export interface DataPanelProps {
   selectedModel: RegistryModel | null;
@@ -9,60 +8,85 @@ export interface DataPanelProps {
   onRemoveTile: (tileId: string) => void;
 }
 
-const buttonStyle = {
-  borderColor: "var(--sys-border)" as const,
-  color: "var(--sys-fg)" as const,
-  background: "var(--sys-titlebar)" as const,
-};
+function SidebarHeader({ label }: { label: string }) {
+  return (
+    <div
+      className="flex h-9 shrink-0 items-center border-b px-3"
+      style={{ borderColor: "var(--border-subtle)" }}
+    >
+      <span
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--fg-muted)",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
 
 export function DataPanel({ selectedModel, tracks, onAddTile, onRemoveTile }: DataPanelProps) {
   const addedTileIds = new Set(tracks.map((t) => t.tileId));
 
   return (
-    <Window title="DATA" className="w-full min-h-0 flex-1 overflow-hidden flex flex-col" contentClassName="flex flex-col min-h-0 overflow-y-auto">
-      {selectedModel === null ? (
-        <div
-          className="flex min-h-[120px] items-center justify-center text-[1rem]"
-          style={{ color: "var(--sys-fg)" }}
-        >
-          Select a model.
-        </div>
-      ) : (
-        <div className="space-y-[var(--sys-space-3)] min-h-0">
-          <div>
-            <p className="font-semibold text-[1rem]" style={{ color: "var(--sys-fg)" }}>
-              {selectedModel.name}
-            </p>
-            <p className="mt-[var(--sys-space-1)] text-[1rem]" style={{ color: "var(--sys-fg)" }}>
-              {selectedModel.description}
-            </p>
-          </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <SidebarHeader label="Data" />
 
-          <div className="min-h-0 min-w-0">
-            <ul className="mt-[var(--sys-space-2)] space-y-[var(--sys-space-2)]">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {selectedModel === null ? (
+          <div
+            className="flex min-h-[120px] items-center justify-center text-[13px]"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Select a model.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="text-[13px] font-semibold" style={{ color: "var(--fg)" }}>
+                {selectedModel.name}
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed" style={{ color: "var(--fg-muted)" }}>
+                {selectedModel.description}
+              </p>
+            </div>
+
+            <ul className="flex flex-col gap-1">
               {selectedModel.tiles.map((tile) => {
                 const isAdded = addedTileIds.has(tile.tileId);
                 return (
                   <li
                     key={tile.tileId}
-                    className="flex items-start justify-between gap-[var(--sys-space-2)] border-b py-[var(--sys-space-1)]"
-                    style={{ borderColor: "var(--sys-border)" }}
+                    className="flex items-start justify-between gap-2 rounded px-2 py-2 transition-colors"
+                    style={{
+                      background: isAdded ? "var(--accent-muted)" : "transparent",
+                      borderLeft: isAdded ? "2px solid var(--accent)" : "2px solid transparent",
+                      borderRadius: "var(--radius-sm)",
+                    }}
                   >
                     <div className="min-w-0 flex-1">
                       <span
-                        className="font-semibold"
-                        style={isAdded ? { color: "var(--sys-fg)", opacity: 0.7 } : undefined}
+                        className="text-[13px]"
+                        style={{
+                          color: isAdded ? "var(--fg)" : "var(--fg)",
+                          opacity: isAdded ? 0.75 : 1,
+                          fontWeight: 500,
+                        }}
                       >
                         {tile.label}
                       </span>
                       {tile.description != null && tile.description !== "" && (
-                        <div className="mt-[var(--sys-space-1)] text-[1rem]" style={{ color: "var(--sys-fg)", opacity: 0.85 }}>
+                        <div className="mt-0.5 text-[11px] leading-snug" style={{ color: "var(--fg-muted)" }}>
                           {tile.description}
                         </div>
                       )}
                       <div
-                        className="mt-[var(--sys-space-1)] text-[10px] uppercase opacity-70"
-                        style={{ color: "var(--sys-fg)", fontFamily: '"Tiny5", sans-serif', fontWeight: 400 }}
+                        className="mt-1 text-[10px] uppercase tracking-wider"
+                        style={{ color: "var(--fg-faint)" }}
                       >
                         {tile.source.provider}
                       </div>
@@ -70,11 +94,14 @@ export function DataPanel({ selectedModel, tracks, onAddTile, onRemoveTile }: Da
                     <button
                       type="button"
                       onClick={() => (isAdded ? onRemoveTile(tile.tileId) : onAddTile(selectedModel, tile))}
-                      className="flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center border text-[0.75rem]"
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[12px] transition-colors"
                       style={{
-                        ...buttonStyle,
-                        fontFamily: "ui-monospace, monospace",
+                        background: isAdded ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
+                        border: "1px solid var(--border)",
+                        color: isAdded ? "var(--fg-muted)" : "var(--accent)",
+                        cursor: "pointer",
                         lineHeight: 1,
+                        borderRadius: "var(--radius-sm)",
                       }}
                       title={isAdded ? "Remove from canvas" : "Add to canvas"}
                       aria-label={isAdded ? "Remove from canvas" : "Add to canvas"}
@@ -86,8 +113,8 @@ export function DataPanel({ selectedModel, tracks, onAddTile, onRemoveTile }: Da
               })}
             </ul>
           </div>
-        </div>
-      )}
-    </Window>
+        )}
+      </div>
+    </div>
   );
 }
