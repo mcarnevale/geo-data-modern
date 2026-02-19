@@ -24,6 +24,7 @@ export async function GET(
     return NextResponse.json({ error: "Unknown tile" }, { status: 404 });
   }
 
+  try {
   const kind = tile.fetch.kind;
   if (kind === "wealth-distribution") {
     const payload = await fetchWealthDistribution(fetchOpts);
@@ -127,4 +128,9 @@ export async function GET(
   }
 
   return NextResponse.json({ error: "No data for this tile" }, { status: 404 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[api/data/${tileId}] fetch failed:`, message);
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }

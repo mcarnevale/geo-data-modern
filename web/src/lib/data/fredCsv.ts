@@ -43,7 +43,12 @@ export async function fetchFredSeriesCsv(
     }).catch(() => {});
   }
   // #endregion
-  const res = await fetch(url, init);
+  const fredHeaders: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (compatible; GeoData/1.0; +https://geo-data-modern.vercel.app)",
+    "Accept": "text/csv,text/plain,*/*",
+    "Referer": "https://fred.stlouisfed.org/",
+  };
+  const res = await fetch(url, { ...init, headers: fredHeaders });
   if (!res.ok) throw new Error(`FRED fetch failed: ${res.status}`);
   const text = await res.text();
   const lines = text.trim().split(/\r?\n/);
