@@ -10,12 +10,15 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 export interface CanvasProps {
   tracks: Track[];
   onRemoveTrack?: (trackId: string) => void;
+  onClearAll?: () => void;
 }
 
 const SERIES_COLORS = ["#4f7cff", "#f97316", "#22c55e", "#a855f7"] as const;
 const CHART_HEIGHT = 160;
 const CHART_PADDING = 8;
-const CHART_LEGEND_WIDTH_PX = 72;
+const CHART_LEGEND_WIDTH_PX = 48;
+const TRACK_PAD_LEFT_PX = 8;   // pl-2 on track cards and timeline
+const TRACK_PAD_RIGHT_PX = 16; // pr-4 on track cards and timeline
 const VB_X_PADDING = 4;
 
 type TileDataState =
@@ -77,16 +80,38 @@ function formatAxisLabel(val: number, units?: string): string {
   return prefix + val.toString();
 }
 
+function StackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <rect x="1" y="3" width="14" height="4" rx="1" />
+      <rect x="1" y="9" width="14" height="4" rx="1" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <rect x="1" y="1" width="6" height="6" rx="1" />
+      <rect x="9" y="1" width="6" height="6" rx="1" />
+      <rect x="1" y="9" width="6" height="6" rx="1" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+
 function DataChart({
   dataState,
   domainStartMs,
   domainEndMs,
   chartHeight,
+  cursorDateMs,
 }: {
   dataState: TileDataState | undefined;
   domainStartMs: number;
   domainEndMs: number;
   chartHeight: number;
+  cursorDateMs?: number | null;
 }) {
   const chartId = useId();
   const vbW = 100;
@@ -173,6 +198,7 @@ function DataChart({
   const gridYPositions = [0.25, 0.5, 0.75].map(
     (frac) => CHART_PADDING + frac * chartHeight
   );
+
 
   return (
     <div className="flex w-full flex-col gap-2">
@@ -283,6 +309,20 @@ function DataChart({
                 />
               )
             )}
+
+            {/* Cursor hairline — grid mode only */}
+            {cursorDateMs != null && (
+              <line
+                x1={xScale.xFromDateMs(cursorDateMs)}
+                y1={0}
+                x2={xScale.xFromDateMs(cursorDateMs)}
+                y2={vbH}
+                stroke="var(--accent)"
+                strokeWidth="1"
+                strokeOpacity="0.5"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
           </svg>
         </div>
       </div>
@@ -368,18 +408,18 @@ function CanvasTimeline({
   );
   return (
     <div
-      className="flex w-full shrink-0 border-b px-4 py-2"
+      className="flex h-9 w-full shrink-0 items-center border-b pl-2 pr-4"
       style={{ borderColor: "var(--border-subtle)" }}
     >
       <div
-        className="flex shrink-0 items-end"
+        className="flex shrink-0 items-center"
         style={{ width: CHART_LEGEND_WIDTH_PX, paddingRight: 8 }}
       >
-        <span style={{ fontSize: 10, color: "var(--fg-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <span style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
           Year
         </span>
       </div>
-      <div ref={chartAreaRef} className="relative min-h-[20px] flex-1" style={{ minWidth: 0 }}>
+      <div ref={chartAreaRef} className="relative flex-1 self-stretch" style={{ minWidth: 0 }}>
         {chartInnerWidthPx > 0 &&
           ticks.map((dateMs) => {
             const x = scale.xFromDateMs(dateMs);
@@ -387,13 +427,14 @@ function CanvasTimeline({
             return (
               <span
                 key={dateMs}
-                className="absolute bottom-0"
+                className="absolute"
                 style={{
                   left: `${x}px`,
-                  transform: "translateX(-50%)",
-                  fontSize: 10,
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                  fontSize: 11,
                   color: "var(--fg-muted)",
-                  letterSpacing: "0.04em",
+                  letterSpacing: "0.08em",
                 }}
               >
                 {year}
@@ -405,10 +446,11 @@ function CanvasTimeline({
   );
 }
 
-export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
+export function Canvas({ tracks, onRemoveTrack, onClearAll }: CanvasProps) {
   const [domainStartMs, setDomainStartMs] = useState(DEFAULT_DOMAIN_START_MS);
   const [domainEndMs, setDomainEndMs] = useState(DEFAULT_DOMAIN_END_MS);
   const [chartHeight, setChartHeight] = useState(CHART_HEIGHT);
+  const [gridMode, setGridMode] = useState(false);
   // #region agent log
   const loggedDomainRef = useRef(false);
   if (tracks.length > 0 && !loggedDomainRef.current) {
@@ -431,7 +473,6 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
   const [chartInnerWidthPx, setChartInnerWidthPx] = useState(0);
   const [cursorLeftPx, setCursorLeftPx] = useState<number | null>(null);
   const [cursorDateMs, setCursorDateMs] = useState<number | null>(null);
-  const [chartAreaLeftOffset, setChartAreaLeftOffset] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
   const [dataByTileId, setDataByTileId] = useState<Record<string, TileDataState>>({});
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
@@ -452,8 +493,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
 
   void setDomainStartMs;
   void setDomainEndMs;
-  void chartAreaLeftOffset;
-  void setChartAreaLeftOffset;
+
 
   useEffect(() => {
     const fetchableTileIds = new Set<string>();
@@ -503,14 +543,8 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
 
   useLayoutEffect(() => {
     const chartEl = chartAreaRef.current;
-    const containerEl = containerRef.current;
-    if (chartEl == null || containerEl == null) return;
-    const update = () => {
-      const chartRect = chartEl.getBoundingClientRect();
-      const containerRect = containerEl.getBoundingClientRect();
-      setChartInnerWidthPx(chartRect.width);
-      setChartAreaLeftOffset(chartRect.left - containerRect.left);
-    };
+    if (chartEl == null) return;
+    const update = () => setChartInnerWidthPx(chartEl.getBoundingClientRect().width);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(chartEl);
@@ -554,12 +588,33 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
 
   const updateCursor = useCallback(() => {
     rafIdRef.current = null;
-    const chartEl = chartAreaRef.current;
     const containerEl = containerRef.current;
     const clientX = pendingClientXRef.current;
-    if (chartEl == null || containerEl == null || clientX == null) return;
-    const chartRect = chartEl.getBoundingClientRect();
+    if (containerEl == null || clientX == null) return;
     const containerRect = containerEl.getBoundingClientRect();
+
+    if (gridMode) {
+      // In grid mode, compute date from cursor position within the hovered column's chart area.
+      const columnWidth = containerRect.width / 2;
+      const colIndex = clientX < containerRect.left + columnWidth ? 0 : 1;
+      const chartAreaLeft = containerRect.left + colIndex * columnWidth + TRACK_PAD_LEFT_PX + CHART_LEGEND_WIDTH_PX;
+      const chartAreaWidth = columnWidth - TRACK_PAD_LEFT_PX - CHART_LEGEND_WIDTH_PX - TRACK_PAD_RIGHT_PX;
+      const chartX = clientX - chartAreaLeft;
+      if (chartX < 0 || chartX > chartAreaWidth) {
+        setCursorDateMs(null);
+        setIsHovering(false);
+        return;
+      }
+      const scale = makeLinearScale(domainStartMs, domainEndMs, 0, chartAreaWidth);
+      setCursorDateMs(scale.dateMsFromX(chartX));
+      setIsHovering(true);
+      return;
+    }
+
+    // Stack mode — original behavior using the timeline's chart area ref.
+    const chartEl = chartAreaRef.current;
+    if (chartEl == null) return;
+    const chartRect = chartEl.getBoundingClientRect();
     const leftOffset = chartRect.left - containerRect.left;
     const chartX = clientX - chartRect.left;
     if (chartX < 0 || chartX > chartRect.width) {
@@ -574,7 +629,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
     setCursorLeftPx(leftOffset + clampedChartX);
     setCursorDateMs(dateMs);
     setIsHovering(true);
-  }, [domainStartMs, domainEndMs]);
+  }, [domainStartMs, domainEndMs, gridMode]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -607,26 +662,60 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
       style={{ borderColor: "var(--border-subtle)" }}
     >
       <div className="flex items-center gap-3">
-        <span style={{ fontSize: 12, color: "var(--fg-faint)" }}>Ready</span>
+        <button
+          type="button"
+          onClick={() => setGridMode((g) => !g)}
+          title={gridMode ? "Switch to single column" : "Switch to two columns"}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            color: "var(--fg-muted)",
+            lineHeight: 0,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          {gridMode ? <GridIcon /> : <StackIcon />}
+        </button>
         <input
           type="range"
           min={60}
-          max={360}
+          max={180}
           step={10}
           value={chartHeight}
           onChange={(e) => setChartHeight(Number(e.target.value))}
-          style={{ width: 80, accentColor: "var(--accent)", cursor: "pointer" }}
+          className="canvas-range"
+          style={{ width: 120 }}
           title={`Chart height: ${chartHeight}px`}
           aria-label="Chart height"
         />
+        {onClearAll && tracks.length > 0 && (
+          <button
+            type="button"
+            onClick={onClearAll}
+            title="Clear all tracks"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "var(--fg-faint)",
+              lineHeight: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-muted)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-faint)"; }}
+            aria-label="Clear all tracks"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 2h4a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zM4 2a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3h3a1 1 0 1 1 0 2h-1l-1 9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2L2 4H1a1 1 0 0 1 0-2h3z" />
+            </svg>
+          </button>
+        )}
       </div>
-      {isHovering && cursorDateMs != null ? (
-        <span style={{ fontSize: 12, color: "var(--fg-muted)" }}>
-          {formatDateForStatus(cursorDateMs)}
-        </span>
-      ) : (
-        <span>&nbsp;</span>
-      )}
     </div>
   );
 
@@ -646,6 +735,12 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <CanvasTimeline
+        domainStartMs={domainStartMs}
+        domainEndMs={domainEndMs}
+        chartInnerWidthPx={chartInnerWidthPx}
+        chartAreaRef={chartAreaRef}
+      />
       <div className="min-h-0 flex-1 overflow-auto">
         <div
           ref={containerRef}
@@ -653,19 +748,18 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
         >
-          <CanvasTimeline
-            domainStartMs={domainStartMs}
-            domainEndMs={domainEndMs}
-            chartInnerWidthPx={chartInnerWidthPx}
-            chartAreaRef={chartAreaRef}
-          />
-
+          <div
+            style={
+              gridMode
+                ? { display: "grid", gridTemplateColumns: "1fr 1fr" }
+                : { display: "flex", flexDirection: "column" }
+            }
+          >
           {tracks.map((track) => (
             <div
               key={track.id}
-              className="flex flex-col border-b px-4 py-4"
+              className="flex flex-col pl-2 pr-4 py-4"
               style={{
-                borderColor: "var(--border-subtle)",
                 background: hoveredTrackId === track.id ? "rgba(255,255,255,0.015)" : "transparent",
                 transition: "background 0.15s",
               }}
@@ -803,6 +897,7 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
                     domainStartMs={domainStartMs}
                     domainEndMs={domainEndMs}
                     chartHeight={chartHeight}
+                    cursorDateMs={gridMode && isHovering ? cursorDateMs : undefined}
                   />
                 ) : (
                   <div
@@ -824,9 +919,10 @@ export function Canvas({ tracks, onRemoveTrack }: CanvasProps) {
               </div>
             </div>
           ))}
+          </div>
 
-          {/* Cursor hairline */}
-          {isHovering && cursorLeftPx !== null && (
+          {/* Cursor hairline — only in single-column mode */}
+          {!gridMode && isHovering && cursorLeftPx !== null && (
             <div
               className="pointer-events-none absolute top-0 bottom-0 z-10 w-px"
               style={{

@@ -162,6 +162,8 @@ export function Desktop() {
     setTracks((prev) => prev.filter((t) => t.id !== trackId));
   }, []);
 
+  const handleClearAll = useCallback(() => setTracks([]), []);
+
   const handleSaveScene = useCallback(
     (name: string) => {
       setScenes((prev) => [
@@ -254,7 +256,7 @@ export function Desktop() {
 
         {/* Main Canvas */}
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <Canvas tracks={tracks} onRemoveTrack={handleRemoveTrack} />
+          <Canvas tracks={tracks} onRemoveTrack={handleRemoveTrack} onClearAll={handleClearAll} />
 
           {isScenesOpen && (
             <div className="absolute right-4 top-4 z-10" aria-label="Scenes">
